@@ -1,13 +1,12 @@
 """
 Arena Comercial — Dashboard de Gamificación (Streamlit)
 --------------------------------------------------------
-Antes era Flask + Jinja; ahora es una app Streamlit de una sola página.
-La lógica de rangos/logros vive en ranks.py (sin cambios de negocio,
-solo se le quitó la dependencia de Flask).
+Incluye Login, Roles de Gerencia, Muro de Fuego y Recompensas.
 """
 
 import random
 from pathlib import Path
+import pandas as pd
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -15,6 +14,7 @@ import streamlit.components.v1 as components
 from ranks import RANGOS, cargar_ranking
 
 APP_DIR = Path(__file__).parent
+USUARIOS_FILE = APP_DIR / "data" / "usuarios.xlsx"
 
 st.set_page_config(page_title="Arena Comercial", page_icon="🏆", layout="wide")
 
@@ -22,14 +22,9 @@ st.set_page_config(page_title="Arena Comercial", page_icon="🏆", layout="wide"
 # Estilos: fuentes + CSS del sistema de diseño
 # ---------------------------------------------------------------------------
 def inject_css():
-    """
-    OJO: cada tag va en su propia llamada a st.markdown, cada una por
-    separado. Si se concatenan <link> + <style> en una sola llamada,
-    Streamlit deja de reconocer el <style> como bloque HTML "en bruto" y
-    el CSS se cuela como texto visible en la página en vez de aplicarse
-    como hoja de estilos (justo el bug que se veía antes).
-    """
-    css = (APP_DIR / "assets" / "styles.css").read_text(encoding="utf-8")
+    css_path = APP_DIR / "assets" / "styles.css"
+    # Si por algún motivo no encuentra el CSS, evitamos que la app colapse
+    css = css_path.read_text(encoding="utf-8") if css_path.exists() else ""
 
     st.markdown(
         '<link rel="preconnect" href="https://fonts.googleapis.com">',
@@ -40,15 +35,14 @@ def inject_css():
         '&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">',
         unsafe_allow_html=True,
     )
-    st.markdown(f"<style>\n{css}\n</style>", unsafe_allow_html=True)
+    if css:
+        st.markdown(f"<style>\n{css}\n</style>", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
-# Helpers de render (Python -> HTML, reemplazan lo que antes hacía Jinja/JS)
+# Helpers de render (Python -> HTML)
 # ---------------------------------------------------------------------------
 def particles_html(rango_id: str, size: str) -> str:
-    """Genera partículas con posiciones/tiempos aleatorios en cada render
-    (en la versión Flask esto lo hacía dashboard.js en el navegador)."""
     if rango_id not in ("maestro", "ascendente"):
         return ""
     n = 10 if size == "xl" else 6
@@ -64,7 +58,6 @@ def particles_html(rango_id: str, size: str) -> str:
         )
     return "".join(spans)
 
-
 def badge_html(rango_id: str, avatar: str, size: str = "xl") -> str:
     return (
         f'<div class="badge badge--{size} badge--{rango_id}">'
@@ -72,7 +65,6 @@ def badge_html(rango_id: str, avatar: str, size: str = "xl") -> str:
         f'<span class="badge__icon">{avatar}</span>'
         f"{particles_html(rango_id, size)}</div>"
     )
-
 
 def hero_card_html(persona: dict) -> str:
     rango = persona["rango"]
@@ -99,7 +91,6 @@ def hero_card_html(persona: dict) -> str:
     </div>
     """
 
-
 def podium_html(top3: list) -> str:
     crowns = ["👑", "🥈", "🥉"]
     slots = "".join(
@@ -114,7 +105,6 @@ def podium_html(top3: list) -> str:
         for i, c in enumerate(top3)
     )
     return f'<div class="podium">{slots}</div>'
-
 
 def ranking_table_html(ranking: list, nombre_seleccionado: str) -> str:
     rows = []
@@ -138,7 +128,6 @@ def ranking_table_html(ranking: list, nombre_seleccionado: str) -> str:
     </table>
     """
 
-
 def achievements_html(logros: list) -> str:
     cards = []
     for l in logros:
@@ -152,11 +141,7 @@ def achievements_html(logros: list) -> str:
         </div>""")
     return f'<div class="achievements-grid">{"".join(cards)}</div>'
 
-
 def render_levelup(nombre_rango: str):
-    """Celebración de subida de rango: al no poder pintar un overlay a
-    pantalla completa dentro del sandbox de un componente de Streamlit,
-    se muestra como un banner protagonista con confeti animado en canvas."""
     html = f"""
     <div style="position:relative;height:320px;border-radius:20px;overflow:hidden;
                 background:radial-gradient(circle at 50% 30%, #1b2430, #05070a);
@@ -202,40 +187,187 @@ def render_levelup(nombre_rango: str):
     """
     components.html(html, height=340)
 
+# ---------------------------------------------------------------------------
+# LÓGICAS NUEVAS: Login y Muro de Fuego
+# ---------------------------------------------------------------------------
+def verificar_login():
+    if "autenticado" not in st.session_state:
+        st.session_state["autenticado"] = False
+    if st.session_state["autenticado"]:
+        return  # ya ha entrado, seguimos con la app normal
+        
+    st.markdown(
+        '<div class="arena-brand"><span class="arena-brand__mark">◆</span>'
+        '<span class="arena-brand__text">ARENA COMERCIAL</span></div>',
+        unsafe_allow_html=True,
+    )
+    st.subheader("🔐 Inicia sesión para ver tu ranking")
+    
+    with st.form("login_form"):
+        usuario_input = st.text_input("Usuario")
+        clave_input = st.text_input("Contraseña", type="password")
+        enviado = st.form_submit_button("Entrar")
+        
+    if enviado:
+        try:
+            usuarios = pd.read_excel(USUARIOS_FILE)
+            fila = usuarios[
+                (usuarios["usuario"].astype(str).str.lower() == usuario_input.strip().lower())
+                & (usuarios["contraseña"].astype(str) == clave_input)
+            ]
+            if not fila.empty:
+                st.session_state["autenticado"] = True
+                st.session_state["usuario_actual"] = usuario_input
+                st.session_state["rol_actual"] = fila.iloc[0]["rol"]
+                st.session_state["nombre_comercial"] = fila.iloc[0]["nombre_comercial"]
+                st.rerun()
+            else:
+                st.error("Usuario o contraseña incorrectos")
+        except FileNotFoundError:
+            st.error(f"Error: No se encuentra el archivo '{USUARIOS_FILE}'. Asegúrate de haberlo subido a la carpeta 'data/'.")
+            
+    st.stop()  # corta la ejecución hasta que haya login válido
+
+def detectar_muro_de_fuego(ranking_actual: list) -> list:
+    orden_rangos = [r["id"] for r in RANGOS]
+    anterior = st.session_state.get("ranking_anterior")
+    mensajes = []
+    
+    if anterior:
+        actuales_por_nombre = {c["nombre"]: c for c in ranking_actual}
+        for nombre, snap_previo in anterior.items():
+            actual = actuales_por_nombre.get(nombre)
+            if not actual:
+                continue
+            subio_de_rango = (
+                orden_rangos.index(actual["rango"]["id"])
+                > orden_rangos.index(snap_previo["rango_id"])
+            )
+            if not subio_de_rango or snap_previo["puesto"] == 1:
+                continue
+                
+            nombre_superado = next(
+                (n for n, p in anterior.items() if p["puesto"] == snap_previo["puesto"] - 1),
+                None,
+            )
+            if not nombre_superado:
+                continue
+            superado_actual = actuales_por_nombre.get(nombre_superado)
+            if superado_actual and actual["puntos"] > superado_actual["puntos"]:
+                mensajes.append(
+                    f"🔥 ¡BRUTAL! **{nombre}** acaba de subir a rango "
+                    f"**{actual['rango']['nombre']}** con sus últimos contratos y ha "
+                    f"dejado a **{nombre_superado}** mordiendo el polvo en el "
+                    f"retrovisor. ¡A espabilar! 💥"
+                )
+                
+    st.session_state["ranking_anterior"] = {
+        c["nombre"]: {"puntos": c["puntos"], "rango_id": c["rango"]["id"], "puesto": c["puesto"]}
+        for c in ranking_actual
+    }
+    return mensajes
 
 # ---------------------------------------------------------------------------
-# App
+# APP PRINCIPAL
 # ---------------------------------------------------------------------------
 inject_css()
+verificar_login()
 
 ranking = cargar_ranking()
 
-st.markdown(
-    '<div class="arena-brand"><span class="arena-brand__mark">◆</span>'
-    '<span class="arena-brand__text">ARENA COMERCIAL</span></div>'
-    '<p class="arena-header__meta">Temporada en curso · datos desde data/comerciales.xlsx</p>',
-    unsafe_allow_html=True,
-)
+# --- MENÚ LATERAL ---
+with st.sidebar:
+    st.markdown(f"**{st.session_state['usuario_actual']}**")
+    st.caption(st.session_state["rol_actual"])
+    st.divider()
+    
+    opciones = ["🏆 Ranking", "🎖️ Logros"]
+    if st.session_state["rol_actual"] == "Gerente":
+        opciones.append("📊 Vista Estratégica")
+        
+    pagina = st.radio("Navegación", opciones, label_visibility="collapsed")
+    st.divider()
+    
+    if st.button("Cerrar sesión"):
+        st.session_state.clear()
+        st.rerun()
 
+# --- SELECTOR DE USUARIO (GERENTE VS COMERCIAL) ---
 nombres = [c["nombre"] for c in ranking]
-nombre_seleccionado = st.selectbox("Ver dashboard como:", nombres, index=0)
-yo = next(c for c in ranking if c["nombre"] == nombre_seleccionado)
 
-st.markdown(hero_card_html(yo), unsafe_allow_html=True)
+if st.session_state["rol_actual"] == "Gerente":
+    nombre_seleccionado = st.selectbox("Ver dashboard como:", nombres, index=0)
+else:
+    nombre_seleccionado = st.session_state["nombre_comercial"]
 
-col_btn, _ = st.columns([1, 3])
-with col_btn:
-    if st.button("▶ Simular subida de rango"):
-        idx_actual = next(i for i, r in enumerate(RANGOS) if r["nombre"] == yo["rango"]["nombre"])
-        siguiente = RANGOS[idx_actual + 1] if idx_actual + 1 < len(RANGOS) else RANGOS[-1]
-        render_levelup(siguiente["nombre"])
+# Buscamos los datos de la persona seleccionada
+try:
+    yo = next(c for c in ranking if c["nombre"] == nombre_seleccionado)
+except StopIteration:
+    st.error(f"Error: El comercial '{nombre_seleccionado}' no está en la base de datos de comerciales.xlsx")
+    st.stop()
 
-st.markdown('<p class="panel-title">Clasificación del equipo</p>', unsafe_allow_html=True)
-st.markdown(podium_html(ranking[:3]), unsafe_allow_html=True)
-st.markdown(ranking_table_html(ranking, nombre_seleccionado), unsafe_allow_html=True)
 
-st.markdown(
-    f'<p class="panel-title" style="margin-top:32px;">Vitrina de logros — {yo["nombre"]}</p>',
-    unsafe_allow_html=True,
-)
-st.markdown(achievements_html(yo["logros"]), unsafe_allow_html=True)
+# --- RUTAS DE NAVEGACIÓN ---
+if pagina == "🏆 Ranking":
+    
+    st.markdown(
+        '<div class="arena-brand"><span class="arena-brand__mark">◆</span>'
+        '<span class="arena-brand__text">ARENA COMERCIAL</span></div>'
+        '<p class="arena-header__meta">Temporada en curso · datos desde data/comerciales.xlsx</p>',
+        unsafe_allow_html=True,
+    )
+    
+    # Renderizamos el Muro de Fuego
+    for mensaje in detectar_muro_de_fuego(ranking):
+        st.success(mensaje)
+
+    st.markdown(hero_card_html(yo), unsafe_allow_html=True)
+
+    col_btn, _ = st.columns([1, 3])
+    with col_btn:
+        if st.button("▶ Simular subida de rango"):
+            idx_actual = next(i for i, r in enumerate(RANGOS) if r["nombre"] == yo["rango"]["nombre"])
+            siguiente = RANGOS[idx_actual + 1] if idx_actual + 1 < len(RANGOS) else RANGOS[-1]
+            render_levelup(siguiente["nombre"])
+
+    st.markdown('<p class="panel-title">Clasificación del equipo</p>', unsafe_allow_html=True)
+    st.markdown(podium_html(ranking[:3]), unsafe_allow_html=True)
+    st.markdown(ranking_table_html(ranking, nombre_seleccionado), unsafe_allow_html=True)
+
+elif pagina == "🎖️ Logros":
+    st.markdown(
+        f'<p class="panel-title" style="margin-top:32px;">Vitrina de logros — {yo["nombre"]}</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(achievements_html(yo["logros"]), unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Mecánica de Cofres
+    RECOMPENSAS_ELITE = [
+        "🎵 Eliges la música de la tienda hoy",
+        "☕ Café pagado por el gerente",
+        "🛌 Turno de descanso extra",
+        "🅿️ Sitio de parking VIP durante una semana",
+        "🍕 Invitación a comer",
+    ]
+
+    rango_id_usuario = yo["rango"]["id"]
+    tiene_acceso_cofre = rango_id_usuario in ("ascendente", "maestro")
+
+    st.markdown("### 🎁 Cofre de Recompensa de la Élite")
+
+    if tiene_acceso_cofre:
+        st.caption("Disponible por tu rango actual: " + yo["rango"]["nombre"])
+        if st.button("✨ Abrir Cofre de Recompensa"):
+            premio = random.choice(RECOMPENSAS_ELITE)
+            st.balloons()
+            st.success(f"🎉 ¡Has ganado: {premio}!")
+    else:
+        st.button("🔒 Cofre bloqueado — alcanza Ascendente (19+ pts) para desbloquear", disabled=True)
+
+elif pagina == "📊 Vista Estratégica":
+    st.title("📊 Vista Estratégica")
+    st.info("Próximamente: Panel de Control de Tienda")
+    st.write("Bienvenido a la vista de mando. Pronto integraremos KPIs globales aquí.")
