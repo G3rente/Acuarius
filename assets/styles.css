@@ -1,0 +1,181 @@
+/* ==========================================================================
+   TOKENS
+   ========================================================================== */
+:root {
+  --bg: #0B0F14;
+  --panel: #131A22;
+  --panel-border: #212B36;
+  --text: #E8EDF2;
+  --text-dim: #8A97A6;
+  --accent: #FFB020;
+
+  --bronce-1: #E7A15C; --bronce-2: #8A4E20;
+  --plata-1:  #F1F5F9; --plata-2:  #7C8B9C;
+  --oro-1:    #FFD877; --oro-2:    #C7860B;
+  --platino-1:#CFF7FF; --platino-2:#4FB8D6;
+  --ascend-1: #C79CFF; --ascend-2: #5B2A9E;
+  --maestro-1:#FFB35C; --maestro-2:#D42A2A;
+
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --font-display: "Orbitron", sans-serif;
+  --font-body: "Inter", sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+}
+
+/* ---- Fondo y contenedor general de Streamlit ---- */
+.stApp {
+  background:
+    radial-gradient(circle at 20% -10%, #17202B 0%, transparent 45%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+.block-container { max-width: 1080px; padding-top: 2rem; padding-bottom: 4rem; }
+h1, h2, h3, p, span, div { font-family: var(--font-body); }
+
+/* Botón nativo de Streamlit, recoloreado para encajar con el tema */
+.stButton > button {
+  border-radius: 999px;
+  border: 1px solid rgba(255,176,32,0.4);
+  background: rgba(255,176,32,0.08);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.stButton > button:hover { background: rgba(255,176,32,0.18); border-color: rgba(255,176,32,0.6); }
+
+/* ==========================================================================
+   HEADER / MARCA
+   ========================================================================== */
+.arena-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.arena-brand__mark { color: var(--accent); font-size: 1.1rem; }
+.arena-brand__text { font-family: var(--font-display); font-weight: 700; letter-spacing: 0.06em; font-size: 1.05rem; }
+.arena-header__meta { color: var(--text-dim); font-size: 0.85rem; margin: 0 0 24px; }
+
+/* ==========================================================================
+   HERO CARD — mi rango
+   ========================================================================== */
+.hero-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 36px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--panel-border);
+  background: linear-gradient(160deg, #151D26 0%, #0F151B 100%);
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.hero-card__right { flex: 1; min-width: 220px; }
+.hero-card__eyebrow { margin: 0 0 2px; color: var(--text-dim); font-size: 0.85rem; }
+.hero-card__rank-name { margin: 0 0 4px; font-family: var(--font-display); font-weight: 800; font-size: clamp(2rem, 5vw, 3rem); letter-spacing: 0.02em; }
+.hero-card__player { margin: 0 0 18px; color: var(--text-dim); font-size: 0.95rem; }
+
+/* ==========================================================================
+   BARRA DE PROGRESO
+   ========================================================================== */
+.progress__track { position: relative; height: 14px; border-radius: 999px; background: #0A0E13; border: 1px solid var(--panel-border); overflow: hidden; }
+.progress__fill { position: relative; height: 100%; border-radius: 999px; }
+.progress__fill::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+  width: 40%; animation: progress-sheen 2.4s ease-in-out infinite;
+}
+@keyframes progress-sheen { 0% { transform: translateX(-120%); } 100% { transform: translateX(340%); } }
+.progress__label { margin: 10px 0 0; font-size: 0.9rem; color: var(--text-dim); }
+.progress__label strong { color: var(--text); }
+
+/* ==========================================================================
+   PANELES / TABLA
+   ========================================================================== */
+.panel-title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; letter-spacing: 0.02em; margin: 0 0 18px; }
+
+.podium { display: flex; gap: 16px; margin-bottom: 8px; align-items: flex-end; }
+.podium__slot { flex: 1; text-align: center; padding: 20px 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--panel-border); background: #0F151C; }
+.podium__slot--1 { border-color: rgba(255,209,82,0.35); transform: translateY(-10px); }
+.podium__crown { font-size: 1.4rem; margin-bottom: 6px; }
+.podium__name { margin: 10px 0 0; font-weight: 600; font-size: 0.92rem; }
+.podium__points { margin: 2px 0 0; color: var(--text-dim); font-size: 0.82rem; }
+.podium__rank { margin: 6px 0 0; font-family: var(--font-display); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; }
+
+.ranking-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.ranking-table th { text-align: left; color: var(--text-dim); font-weight: 500; font-size: 0.78rem; padding: 8px 12px; border-bottom: 1px solid var(--panel-border); }
+.ranking-table td { padding: 12px; border-bottom: 1px solid var(--panel-border); }
+.ranking-table tr:last-child td { border-bottom: none; }
+.ranking-table__row--top { background: rgba(255,209,82,0.04); }
+.ranking-table__row--you { outline: 1px solid rgba(255,176,32,0.5); }
+.ranking-table__name { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+
+.pill { display: inline-block; padding: 4px 12px; border-radius: 999px; font-family: var(--font-display); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; border: 1px solid transparent; }
+.pill--bronce { color: var(--bronce-1); background: rgba(138,78,32,0.18); border-color: rgba(231,161,92,0.3); }
+.pill--plata { color: var(--plata-1); background: rgba(124,139,156,0.18); border-color: rgba(241,245,249,0.25); }
+.pill--oro { color: var(--oro-1); background: rgba(199,134,11,0.2); border-color: rgba(255,216,119,0.35); }
+.pill--platino { color: var(--platino-1); background: rgba(79,184,214,0.18); border-color: rgba(207,247,255,0.35); }
+.pill--ascendente { color: var(--ascend-1); background: rgba(91,42,158,0.22); border-color: rgba(199,156,255,0.4); }
+.pill--maestro { color: var(--maestro-1); background: rgba(212,42,42,0.2); border-color: rgba(255,179,92,0.4); }
+
+.rank-text--bronce { color: var(--bronce-1); } .rank-text--plata { color: var(--plata-1); } .rank-text--oro { color: var(--oro-1); }
+.rank-text--platino { color: var(--platino-1); } .rank-text--ascendente { color: var(--ascend-1); } .rank-text--maestro { color: var(--maestro-1); }
+
+/* ==========================================================================
+   INSIGNIAS DE RANGO
+   ========================================================================== */
+.badge { position: relative; display: flex; align-items: center; justify-content: center; border-radius: 50%; isolation: isolate; }
+.badge--xl { width: 128px; height: 128px; font-size: 2.6rem; }
+.badge--md { width: 76px; height: 76px; font-size: 1.7rem; margin: 0 auto; }
+.badge__icon { position: relative; z-index: 3; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
+.badge__ring { position: absolute; inset: 6%; border-radius: 50%; z-index: 1; }
+.badge__glow { position: absolute; inset: -18%; border-radius: 50%; z-index: 0; filter: blur(10px); opacity: 0.6; }
+
+.badge--bronce .badge__ring { background: radial-gradient(circle at 32% 28%, var(--bronce-1), var(--bronce-2) 70%); box-shadow: inset 0 -6px 10px rgba(0,0,0,0.35), inset 0 3px 4px rgba(255,255,255,0.25); }
+.badge--bronce .badge__glow { background: var(--bronce-2); opacity: 0.35; }
+
+.badge--plata .badge__ring, .badge--oro .badge__ring, .badge--platino .badge__ring {
+  background-size: 220% 220%; animation: metal-sheen 3.2s linear infinite;
+  box-shadow: inset 0 -6px 10px rgba(0,0,0,0.3), inset 0 3px 5px rgba(255,255,255,0.35);
+}
+.badge--plata .badge__ring { background-image: linear-gradient(120deg, var(--plata-2) 30%, #fff 48%, var(--plata-1) 52%, var(--plata-2) 70%); }
+.badge--plata .badge__glow { background: var(--plata-1); }
+.badge--oro .badge__ring { background-image: linear-gradient(120deg, var(--oro-2) 30%, #fff8dd 48%, var(--oro-1) 52%, var(--oro-2) 70%); }
+.badge--oro .badge__glow { background: var(--oro-1); opacity: 0.55; }
+.badge--platino .badge__ring { background-image: linear-gradient(120deg, var(--platino-2) 28%, #fff 48%, var(--platino-1) 52%, var(--platino-2) 72%); }
+.badge--platino .badge__glow { background: var(--platino-1); opacity: 0.6; animation: aura-pulse 2.6s ease-in-out infinite; }
+@keyframes metal-sheen { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+
+.badge--ascendente { animation: levitate 3.4s ease-in-out infinite; }
+.badge--ascendente .badge__ring { background: radial-gradient(circle at 35% 30%, var(--ascend-1), var(--ascend-2) 75%); box-shadow: inset 0 -6px 12px rgba(0,0,0,0.35), inset 0 3px 6px rgba(255,255,255,0.3); }
+.badge--ascendente .badge__glow { background: radial-gradient(circle, var(--ascend-1) 0%, transparent 70%); animation: aura-pulse 2.2s ease-in-out infinite; }
+.badge--ascendente::before, .badge--ascendente::after { content: ""; position: absolute; inset: -14%; border-radius: 50%; border: 1px solid rgba(197,156,255,0.5); animation: aura-ring 3.6s linear infinite; z-index: 0; }
+.badge--ascendente::after { inset: -24%; animation-duration: 5s; animation-direction: reverse; opacity: 0.6; }
+@keyframes levitate { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes aura-pulse { 0%, 100% { opacity: 0.45; transform: scale(1); } 50% { opacity: 0.85; transform: scale(1.08); } }
+@keyframes aura-ring { 0% { transform: rotate(0deg) scale(1); } 100% { transform: rotate(360deg) scale(1); } }
+
+.badge--maestro .badge__ring { background: radial-gradient(circle at 35% 30%, var(--maestro-1), var(--maestro-2) 75%); box-shadow: inset 0 -6px 12px rgba(0,0,0,0.4), inset 0 3px 6px rgba(255,220,180,0.4); animation: fire-flicker 1.4s ease-in-out infinite; }
+.badge--maestro .badge__glow { background: radial-gradient(circle, #FFD37A 0%, var(--maestro-2) 60%, transparent 75%); animation: fire-flicker 1s ease-in-out infinite alternate; opacity: 0.75; }
+@keyframes fire-flicker { 0% { filter: brightness(1); transform: scale(1); } 45% { filter: brightness(1.15); transform: scale(1.03); } 60% { filter: brightness(0.95); transform: scale(0.99); } 100% { filter: brightness(1.1); transform: scale(1.02); } }
+
+/* Partículas — generadas en Python (posiciones aleatorias por render, ver app.py) */
+.badge__particle { position: absolute; left: var(--x, 50%); bottom: 6%; border-radius: 50%; z-index: 2; pointer-events: none; }
+.badge--maestro .badge__particle { width: 5px; height: 5px; background: radial-gradient(circle, #FFE9B0, #FF7A3D 70%, transparent); animation: particle-rise var(--dur, 1.8s) ease-in var(--delay, 0s) infinite; }
+.badge--ascendente .badge__particle { width: 4px; height: 4px; background: radial-gradient(circle, #F1E4FF, var(--ascend-1) 70%, transparent); animation: particle-float var(--dur, 3s) ease-in-out var(--delay, 0s) infinite; }
+@keyframes particle-rise { 0% { transform: translateY(0) scale(1); opacity: 0.9; } 100% { transform: translateY(-70px) scale(0.2); opacity: 0; } }
+@keyframes particle-float { 0%, 100% { transform: translate(0, 0); opacity: 0.25; } 50% { transform: translate(var(--x-drift, 6px), -22px); opacity: 0.9; } }
+
+/* ==========================================================================
+   LOGROS
+   ========================================================================== */
+.achievements-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+.achievement { position: relative; padding: 18px 14px; text-align: center; border-radius: var(--radius-md); border: 1px solid var(--panel-border); background: #0F151C; }
+.achievement__icon { font-size: 1.8rem; margin-bottom: 8px; }
+.achievement__name { margin: 0 0 4px; font-size: 0.86rem; font-weight: 600; }
+.achievement__desc { margin: 0; font-size: 0.76rem; color: var(--text-dim); line-height: 1.35; }
+.achievement--locked { filter: grayscale(1); opacity: 0.55; }
+.achievement--locked .achievement__lock { position: absolute; top: 10px; right: 12px; font-size: 0.85rem; }
+.achievement--unlocked { border-color: rgba(255,176,32,0.35); box-shadow: 0 0 0 1px rgba(255,176,32,0.08), 0 8px 20px -12px rgba(255,176,32,0.4); animation: achievement-lightup 0.9s ease-out; }
+@keyframes achievement-lightup { 0% { filter: grayscale(1) brightness(0.7); opacity: 0.4; transform: scale(0.96); } 60% { filter: grayscale(0) brightness(1.25); opacity: 1; transform: scale(1.02); } 100% { filter: grayscale(0) brightness(1); opacity: 1; transform: scale(1); } }
