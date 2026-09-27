@@ -2,7 +2,7 @@
 Arena Comercial — Dashboard de Gamificación (Streamlit)
 --------------------------------------------------------
 Incluye Login, Roles de Gerencia, Muro de Fuego, Recompensas (Barra de Energía),
-Conexión a Google Sheets y Guerra de Facciones (Bug HTML corregido).
+Conexión a Google Sheets y Guerra de Facciones (con parche para comerciales en blanco).
 """
 
 import random
@@ -467,15 +467,25 @@ elif pagina == "⚔️ Facciones":
         "Astros": {"puntos": 0, "gerente": "Majus", "color": "#8B5CF6", "shadow": "rgba(139,92,246,0.5)", "mvp_nombre": "-", "mvp_puntos": -1}
     }
     
+    # 3. Sumar puntos y buscar MVPs (Con regla para el comercial en blanco)
     for c in ranking:
         nombre = c["nombre"]
         puntos = c["puntos"]
-        equipo = equipo_map.get(nombre)
+        
+        # Detectar si el nombre está en blanco, es NaN o None
+        nombre_limpio = str(nombre).strip().lower()
+        if nombre_limpio in ("", "nan", "none", "nat"):
+            equipo = "Dominus" # Asignamos el comercial sin nombre a Dominus
+            nombre_mostrar = "Comercial Anónimo"
+        else:
+            equipo = equipo_map.get(nombre)
+            nombre_mostrar = nombre
+            
         if equipo and equipo in facciones:
             facciones[equipo]["puntos"] += puntos
             if puntos > facciones[equipo]["mvp_puntos"]:
                 facciones[equipo]["mvp_puntos"] = puntos
-                facciones[equipo]["mvp_nombre"] = nombre
+                facciones[equipo]["mvp_nombre"] = nombre_mostrar
                 
     facciones_ordenadas = sorted(facciones.items(), key=lambda x: x[1]["puntos"], reverse=True)
     max_puntos = facciones_ordenadas[0][1]["puntos"] if facciones_ordenadas[0][1]["puntos"] > 0 else 1
