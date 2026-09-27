@@ -1,8 +1,8 @@
 """
-Area Comercial — Dashboard de Gamificación (Streamlit)
+Arena Comercial — Dashboard de Gamificación (Streamlit)
 --------------------------------------------------------
-Incluye Login, Roles de Gerencia, Muro de Fuego, Recompensas (Barra de Energía)
-y Conexión en vivo a Google Sheets.
+Incluye Login, Roles de Gerencia, Muro de Fuego, Recompensas (Barra de Energía),
+Conexión a Google Sheets y ¡GUERRA DE FACCIONES!
 """
 
 import random
@@ -21,6 +21,45 @@ USUARIOS_FILE = APP_DIR / "data" / "usuarios.xlsx"
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/TU_ENLACE_AQUI/pub?output=csv"
 
 st.set_page_config(page_title="Arena Comercial", page_icon="🏆", layout="wide")
+
+# ---------------------------------------------------------------------------
+# AUTO-CONFIGURACIÓN INTELIGENTE DE USUARIOS Y EQUIPOS
+# ---------------------------------------------------------------------------
+def asegurar_columnas_usuarios():
+    """Actualiza usuarios.xlsx automáticamente con los equipos y la columna de cofres"""
+    if USUARIOS_FILE.exists():
+        df = pd.read_excel(USUARIOS_FILE)
+        cambios = False
+        
+        if "puntos_ultimo_cofre" not in df.columns:
+            df["puntos_ultimo_cofre"] = 0
+            cambios = True
+            
+        if "equipo" not in df.columns or df["equipo"].isnull().all():
+            # Diccionario de facciones extraído de tu Excel
+            equipos_dict = {
+                "OROPEZA OL": "Aztecas", "JHONALBERT OL": "Astros", "FLORES OL": "Dominus", 
+                "INFANTE OL": "Pegasus", "NASSER OL": "Pegasus", "GIBRAN OL": "Dominus",
+                "NATASHA OL": "Pegasus", "JOSNEIKER OL": "Pegasus", "VIZCAÍNO OL": "Aztecas",
+                "RACHELY OL": "Dominus", "OCHOA OL": "Dominus", "VELASQUEZ OL": "Astros",
+                "VIZCAYA OL": "Astros", "LAREZ OL": "Aztecas", "HUMBERTO OL": "Dominus",
+                "MINERVA OL": "Astros", "BARRIOS OL": "Dominus", "SOFIA OL": "Dominus",
+                "ANDRADES OL": "Dominus", "LOPANO OL": "Dominus", "MORENO OL": "Aztecas",
+                "NAVAS OL": "Dominus", "GABRIEL OL": "Aztecas", "COLÓN OL": "Pegasus",
+                "HEISYS OL": "Aztecas", "PEÑA OL": "Astros", "JOIVER OL": "Dominus",
+                "MARIANA OL": "Aztecas", "SUAREZ D OL": "Pegasus", "ALDRIANA OL": "Astros",
+                "NAHUM OL": "Astros", "BORGES OL": "Astros", "JHOSTYN OL": "Dominus",
+                "DANIEL OL": "Astros", "RAFAEL OL": "Dominus", "LUYSANGEL OL": "Astros",
+                "EMANUEL OL": "Pegasus", "ALESSANDRA OL": "Pegasus", "KARIANNY OL": "Dominus",
+                "REYES OL": "Dominus", "MARIELIS OL": "Aztecas", "MORALES OL": "Astros",
+                "NORVELYS OL": "Dominus", "YULIANNY OL": "Dominus", "SUÁREZ D OL": "Pegasus",
+                "SIERRA OL": "Astros"
+            }
+            df["equipo"] = df["nombre_comercial"].map(equipos_dict).fillna("")
+            cambios = True
+            
+        if cambios:
+            df.to_excel(USUARIOS_FILE, index=False)
 
 # ---------------------------------------------------------------------------
 # Estilos: fuentes + CSS del sistema de diseño
@@ -282,16 +321,17 @@ def detectar_muro_de_fuego(ranking_actual: list) -> list:
 # ---------------------------------------------------------------------------
 # APP PRINCIPAL
 # ---------------------------------------------------------------------------
+# 1. Corrector inteligente del Excel
+asegurar_columnas_usuarios()
+
 inject_css()
 verificar_login()
 
 # Intentamos usar los datos en vivo de Google Sheets si están configurados
 df_vivo = cargar_datos_sheets()
 try:
-    # Si 'ranks.py' ya está adaptado para recibir el DataFrame:
     ranking = cargar_ranking(df_vivo) if df_vivo is not None else cargar_ranking()
 except TypeError:
-    # Si 'ranks.py' todavía no acepta el parámetro, usamos el método antiguo
     ranking = cargar_ranking()
 
 # --- MENÚ LATERAL ---
@@ -300,7 +340,7 @@ with st.sidebar:
     st.caption(st.session_state["rol_actual"])
     st.divider()
     
-    opciones = ["🏆 Ranking", "🎖️ Logros"]
+    opciones = ["🏆 Ranking", "🎖️ Logros", "⚔️ Facciones"]
     if st.session_state["rol_actual"] == "Gerente":
         opciones.append("📊 Vista Estratégica")
         
@@ -335,7 +375,6 @@ if pagina == "🏆 Ranking":
         unsafe_allow_html=True,
     )
     
-    # Renderizamos el Muro de Fuego
     for mensaje in detectar_muro_de_fuego(ranking):
         st.success(mensaje)
 
@@ -372,13 +411,7 @@ elif pagina == "🎖️ Logros":
 
     st.markdown("### 🎁 Cofre de Recompensa de la Élite")
     
-    # Leer usuarios y AUTO-CORREGIR el Excel si falta la columna
     usuarios_df = pd.read_excel(USUARIOS_FILE)
-    
-    if "puntos_ultimo_cofre" not in usuarios_df.columns:
-        usuarios_df["puntos_ultimo_cofre"] = 0
-        usuarios_df.to_excel(USUARIOS_FILE, index=False)
-        
     fila_usuario = usuarios_df[usuarios_df["usuario"].astype(str).str.lower() == st.session_state["usuario_actual"].lower()]
     
     puntos_ultimo_cofre = fila_usuario.iloc[0].get("puntos_ultimo_cofre", 0)
@@ -424,6 +457,72 @@ elif pagina == "🎖️ Logros":
         else:
             faltan = puntos_objetivo - progreso
             st.button(f"⚡ Consigue {faltan} puntos más para recargar", disabled=True)
+
+elif pagina == "⚔️ Facciones":
+    st.markdown(
+        '<div class="arena-brand"><span class="arena-brand__mark">⚔️</span>'
+        '<span class="arena-brand__text">GUERRA DE FACCIONES</span></div>'
+        '<p class="arena-header__meta">Todos contra Todos · El mejor equipo se lleva la gloria</p>',
+        unsafe_allow_html=True,
+    )
+    
+    # 1. Leer equipos de usuarios.xlsx
+    usuarios_df = pd.read_excel(USUARIOS_FILE)
+    equipo_map = dict(zip(usuarios_df['nombre_comercial'], usuarios_df['equipo']))
+    
+    # 2. Configuración de las facciones (Colores y Gerentes)
+    facciones = {
+        "Aztecas": {"puntos": 0, "gerente": "Joselito", "color": "#10B981", "shadow": "rgba(16,185,129,0.5)", "mvp_nombre": "-", "mvp_puntos": -1},
+        "Pegasus": {"puntos": 0, "gerente": "Joselito", "color": "#3B82F6", "shadow": "rgba(59,130,246,0.5)", "mvp_nombre": "-", "mvp_puntos": -1},
+        "Dominus": {"puntos": 0, "gerente": "Majus", "color": "#EF4444", "shadow": "rgba(239,68,68,0.5)", "mvp_nombre": "-", "mvp_puntos": -1},
+        "Astros": {"puntos": 0, "gerente": "Majus", "color": "#8B5CF6", "shadow": "rgba(139,92,246,0.5)", "mvp_nombre": "-", "mvp_puntos": -1}
+    }
+    
+    # 3. Sumar puntos y buscar MVPs
+    for c in ranking:
+        nombre = c["nombre"]
+        puntos = c["puntos"]
+        equipo = equipo_map.get(nombre)
+        if equipo and equipo in facciones:
+            facciones[equipo]["puntos"] += puntos
+            if puntos > facciones[equipo]["mvp_puntos"]:
+                facciones[equipo]["mvp_puntos"] = puntos
+                facciones[equipo]["mvp_nombre"] = nombre
+                
+    # 4. Ordenar equipos por puntos totales
+    facciones_ordenadas = sorted(facciones.items(), key=lambda x: x[1]["puntos"], reverse=True)
+    max_puntos = facciones_ordenadas[0][1]["puntos"] if facciones_ordenadas[0][1]["puntos"] > 0 else 1
+    
+    # 5. Generar Tarjetas de Combate HTML
+    html_cards = "<div style='display: flex; flex-direction: column; gap: 24px; margin-top: 20px;'>"
+    for rank, (eq_nombre, eq_data) in enumerate(facciones_ordenadas):
+        porcentaje = (eq_data["puntos"] / max_puntos) * 100
+        corona = "👑 " if rank == 0 else ""
+        
+        html_cards += f"""
+        <div style="background-color: #111827; border-radius: 16px; padding: 24px; border: 1px solid #1F2937; position: relative; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px;">
+                <div>
+                    <h2 style="margin: 0; color: #fff; font-family: 'Orbitron', sans-serif; font-size: 2rem; letter-spacing: 2px; text-transform: uppercase;">
+                        {corona}{eq_nombre}
+                    </h2>
+                    <p style="margin: 4px 0 0 0; color: #9CA3AF; font-size: 1rem;">Comandante: <strong style="color: #fff;">{eq_data['gerente']}</strong></p>
+                </div>
+                <div style="text-align: right;">
+                    <h3 style="margin: 0; color: {eq_data['color']}; font-family: 'Orbitron', sans-serif; font-size: 2.5rem; text-shadow: 0 0 10px {eq_data['shadow']};">
+                        {eq_data['puntos']} <span style="font-size:1.2rem; color:#9CA3AF; text-shadow: none;">PTS</span>
+                    </h3>
+                    <p style="margin: 4px 0 0 0; color: #D1D5DB; font-size: 1rem;">⭐ MVP: <strong style="color: #fff;">{eq_data['mvp_nombre']}</strong> ({eq_data['mvp_puntos']} pts)</p>
+                </div>
+            </div>
+            
+            <div style="background-color: #374151; border-radius: 10px; height: 28px; width: 100%; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">
+                <div style="background: linear-gradient(90deg, {eq_data['color']}88, {eq_data['color']}); height: 100%; border-radius: 10px; width: {porcentaje}%; transition: width 1s ease-out; box-shadow: 0 0 20px {eq_data['shadow']};"></div>
+            </div>
+        </div>
+        """
+    html_cards += "</div>"
+    st.markdown(html_cards, unsafe_allow_html=True)
 
 elif pagina == "📊 Vista Estratégica":
     st.title("📊 Vista Estratégica")
