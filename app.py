@@ -1,7 +1,8 @@
 """
-Arena Comercial — Dashboard de Gamificación (Streamlit)
+Area Comercial — Dashboard de Gamificación (Streamlit)
 --------------------------------------------------------
-Incluye Login, Roles de Gerencia, Muro de Fuego y Recompensas.
+Incluye Login, Roles de Gerencia, Muro de Fuego, Recompensas (Barra de Energía)
+y Conexión en vivo a Google Sheets.
 """
 
 import random
@@ -16,6 +17,9 @@ from ranks import RANGOS, cargar_ranking
 APP_DIR = Path(__file__).parent
 USUARIOS_FILE = APP_DIR / "data" / "usuarios.xlsx"
 
+# Pon aquí el enlace .csv de tu Google Sheets publicado en la web
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/TU_ENLACE_AQUI/pub?output=csv"
+
 st.set_page_config(page_title="Arena Comercial", page_icon="🏆", layout="wide")
 
 # ---------------------------------------------------------------------------
@@ -23,7 +27,6 @@ st.set_page_config(page_title="Arena Comercial", page_icon="🏆", layout="wide"
 # ---------------------------------------------------------------------------
 def inject_css():
     css_path = APP_DIR / "assets" / "styles.css"
-    # Si por algún motivo no encuentra el CSS, evitamos que la app colapse
     css = css_path.read_text(encoding="utf-8") if css_path.exists() else ""
 
     st.markdown(
@@ -37,7 +40,6 @@ def inject_css():
     )
     if css:
         st.markdown(f"<style>\n{css}\n</style>", unsafe_allow_html=True)
-
 
 # ---------------------------------------------------------------------------
 # Helpers de render (Python -> HTML)
@@ -188,13 +190,23 @@ def render_levelup(nombre_rango: str):
     components.html(html, height=340)
 
 # ---------------------------------------------------------------------------
-# LÓGICAS NUEVAS: Login y Muro de Fuego
+# LÓGICAS NUEVAS: Google Sheets, Login y Muro de Fuego
 # ---------------------------------------------------------------------------
+@st.cache_data(ttl=60)
+def cargar_datos_sheets():
+    try:
+        if "TU_ENLACE_AQUI" not in SHEET_CSV_URL:
+            return pd.read_csv(SHEET_CSV_URL)
+        return None
+    except Exception as e:
+        st.error(f"Error conectando a Google Sheets: {e}")
+        return None
+
 def verificar_login():
     if "autenticado" not in st.session_state:
         st.session_state["autenticado"] = False
     if st.session_state["autenticado"]:
-        return  # ya ha entrado, seguimos con la app normal
+        return  
         
     st.markdown(
         '<div class="arena-brand"><span class="arena-brand__mark">◆</span>'
@@ -226,7 +238,7 @@ def verificar_login():
         except FileNotFoundError:
             st.error(f"Error: No se encuentra el archivo '{USUARIOS_FILE}'. Asegúrate de haberlo subido a la carpeta 'data/'.")
             
-    st.stop()  # corta la ejecución hasta que haya login válido
+    st.stop()  
 
 def detectar_muro_de_fuego(ranking_actual: list) -> list:
     orden_rangos = [r["id"] for r in RANGOS]
@@ -273,7 +285,14 @@ def detectar_muro_de_fuego(ranking_actual: list) -> list:
 inject_css()
 verificar_login()
 
-ranking = cargar_ranking()
+# Intentamos usar los datos en vivo de Google Sheets si están configurados
+df_vivo = cargar_datos_sheets()
+try:
+    # Si 'ranks.py' ya está adaptado para recibir el DataFrame:
+    ranking = cargar_ranking(df_vivo) if df_vivo is not None else cargar_ranking()
+except TypeError:
+    # Si 'ranks.py' todavía no acepta el parámetro, usamos el método antiguo
+    ranking = cargar_ranking()
 
 # --- MENÚ LATERAL ---
 with st.sidebar:
@@ -300,13 +319,11 @@ if st.session_state["rol_actual"] == "Gerente":
 else:
     nombre_seleccionado = st.session_state["nombre_comercial"]
 
-# Buscamos los datos de la persona seleccionada
 try:
     yo = next(c for c in ranking if c["nombre"] == nombre_seleccionado)
 except StopIteration:
-    st.error(f"Error: El comercial '{nombre_seleccionado}' no está en la base de datos de comerciales.xlsx")
+    st.error(f"Error: El comercial '{nombre_seleccionado}' no está en la base de datos de comerciales.")
     st.stop()
-
 
 # --- RUTAS DE NAVEGACIÓN ---
 if pagina == "🏆 Ranking":
@@ -314,7 +331,7 @@ if pagina == "🏆 Ranking":
     st.markdown(
         '<div class="arena-brand"><span class="arena-brand__mark">◆</span>'
         '<span class="arena-brand__text">ARENA COMERCIAL</span></div>'
-        '<p class="arena-header__meta">Temporada en curso · datos desde data/comerciales.xlsx</p>',
+        '<p class="arena-header__meta">Temporada en curso · Sincronización activa</p>',
         unsafe_allow_html=True,
     )
     
@@ -344,7 +361,7 @@ elif pagina == "🎖️ Logros":
     
     st.divider()
     
-    # Mecánica de Cofres
+    # --- MECÁNICA DE COFRES Y BARRA DE ENERGÍA ---
     RECOMPENSAS_ELITE = [
         "🎵 Eliges la música de la tienda hoy",
         "☕ Café pagado por el gerente",
@@ -353,19 +370,60 @@ elif pagina == "🎖️ Logros":
         "🍕 Invitación a comer",
     ]
 
+    st.markdown("### 🎁 Cofre de Recompensa de la Élite")
+    
+    # Leer usuarios y AUTO-CORREGIR el Excel si falta la columna
+    usuarios_df = pd.read_excel(USUARIOS_FILE)
+    
+    if "puntos_ultimo_cofre" not in usuarios_df.columns:
+        usuarios_df["puntos_ultimo_cofre"] = 0
+        usuarios_df.to_excel(USUARIOS_FILE, index=False)
+        
+    fila_usuario = usuarios_df[usuarios_df["usuario"].astype(str).str.lower() == st.session_state["usuario_actual"].lower()]
+    
+    puntos_ultimo_cofre = fila_usuario.iloc[0].get("puntos_ultimo_cofre", 0)
+    if pd.isna(puntos_ultimo_cofre):
+        puntos_ultimo_cofre = 0
+        
+    puntos_actuales = yo["puntos"]
+    puntos_acumulados = puntos_actuales - puntos_ultimo_cofre
+    puntos_objetivo = 10
+    
+    progreso = min(max(puntos_acumulados, 0), puntos_objetivo)
+    porcentaje = (progreso / puntos_objetivo) * 100
+
+    barra_html = f"""
+    <div style="background-color: #111827; border-radius: 12px; padding: 16px; margin-bottom: 24px; border: 1px solid #1F2937;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="color: #10B981; font-family: 'Orbitron', sans-serif; font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Energía del Cofre</span>
+            <span style="color: #fff; font-family: 'Inter', sans-serif; font-weight: 600;">{progreso} / {puntos_objetivo} pts</span>
+        </div>
+        <div style="background-color: #374151; border-radius: 8px; height: 18px; width: 100%; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">
+            <div style="background: linear-gradient(90deg, #059669, #34D399); height: 100%; border-radius: 8px; width: {porcentaje}%; transition: width 0.8s ease-out; box-shadow: 0 0 10px #34D399;"></div>
+        </div>
+    </div>
+    """
+    st.markdown(barra_html, unsafe_allow_html=True)
+
     rango_id_usuario = yo["rango"]["id"]
     tiene_acceso_cofre = rango_id_usuario in ("ascendente", "maestro")
 
-    st.markdown("### 🎁 Cofre de Recompensa de la Élite")
-
-    if tiene_acceso_cofre:
-        st.caption("Disponible por tu rango actual: " + yo["rango"]["nombre"])
-        if st.button("✨ Abrir Cofre de Recompensa"):
-            premio = random.choice(RECOMPENSAS_ELITE)
-            st.balloons()
-            st.success(f"🎉 ¡Has ganado: {premio}!")
-    else:
+    if not tiene_acceso_cofre:
         st.button("🔒 Cofre bloqueado — alcanza Ascendente (19+ pts) para desbloquear", disabled=True)
+    else:
+        if progreso >= puntos_objetivo:
+            if st.button("✨ ¡ENERGÍA AL MÁXIMO! ABRIR COFRE ✨", type="primary"):
+                idx = fila_usuario.index[0]
+                usuarios_df.at[idx, "puntos_ultimo_cofre"] = puntos_actuales
+                usuarios_df.to_excel(USUARIOS_FILE, index=False)
+                
+                premio = random.choice(RECOMPENSAS_ELITE)
+                st.balloons()
+                st.success(f"🎉 ¡Has ganado: {premio}!")
+                st.rerun()
+        else:
+            faltan = puntos_objetivo - progreso
+            st.button(f"⚡ Consigue {faltan} puntos más para recargar", disabled=True)
 
 elif pagina == "📊 Vista Estratégica":
     st.title("📊 Vista Estratégica")
