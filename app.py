@@ -2,7 +2,8 @@
 Arena Comercial — Dashboard de Gamificación (Streamlit)
 --------------------------------------------------------
 Incluye Login, Roles de Gerencia, Muro de Fuego, Recompensas (Barra de Energía),
-Guerra de Facciones (con filtro estricto) y Conexión Dinámica a Google Sheets.
+Guerra de Facciones (con filtro estricto) y Conexión Dinámica a Google Sheets
+con Agrupación Automática de Puntos.
 """
 
 import random
@@ -252,7 +253,24 @@ def cargar_datos_sheets():
     try:
         url = obtener_url_sheets()
         if url and "TU_ENLACE_AQUI" not in url:
-            return pd.read_csv(url)
+            # Leemos el CSV ignorando las líneas sucias que dan el error de las 12 columnas
+            df = pd.read_csv(url, on_bad_lines='skip')
+            
+            # Limpiamos nombres de columnas por si hay espacios invisibles
+            df.columns = df.columns.str.strip().str.upper()
+            
+            # Si el Excel es un registro de ventas (tiene COMERCIAL y PTS), lo sumamos automáticamente
+            if 'COMERCIAL' in df.columns and 'PTS' in df.columns:
+                # Renombramos a lo que entiende ranks.py
+                df = df.rename(columns={'COMERCIAL': 'nombre', 'PTS': 'puntos'})
+                
+                # Convertimos los puntos a números por si acaso y rellenamos vacíos con 0
+                df['puntos'] = pd.to_numeric(df['puntos'], errors='coerce').fillna(0)
+                
+                # LA MAGIA: Agrupamos por comercial y sumamos todos sus contratos repetidos
+                df = df.groupby('nombre', as_index=False)['puntos'].sum()
+                
+            return df
         return None
     except Exception as e:
         st.error(f"Error conectando a Google Sheets: {e}")
