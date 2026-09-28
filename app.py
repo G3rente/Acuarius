@@ -3,7 +3,7 @@ Arena Comercial — Dashboard de Gamificación (Streamlit)
 --------------------------------------------------------
 Incluye Login, Roles de Gerencia, Muro de Fuego, Recompensas (Barra de Energía),
 Guerra de Facciones (con filtro estricto) y Conexión Dinámica a Google Sheets
-con Modo a Prueba de Fallos.
+con Modo a Prueba de Fallos Inteligente.
 """
 
 import random
@@ -273,8 +273,8 @@ def cargar_datos_sheets():
             return df
         return None
     except Exception as e:
-        # Silenciamos el error visual para no asustar al usuario
-        return None
+        # Dejamos que el bloque de abajo capture el error
+        raise e
 
 def verificar_login():
     if "autenticado" not in st.session_state:
@@ -361,16 +361,17 @@ inject_css()
 verificar_login()
 
 # --- CARGA SEGURA DE DATOS A PRUEBA DE FALLOS ---
-df_vivo = cargar_datos_sheets()
 ranking = []
+error_critico = None
+
 try:
+    df_vivo = cargar_datos_sheets()
     if df_vivo is not None:
         ranking = cargar_ranking(df_vivo)
     else:
         ranking = cargar_ranking()
-except Exception:
-    # Si todo falla (ej: archivo local borrado y Sheets desconectado), ranking se queda vacío
-    pass
+except Exception as e:
+    error_critico = e
 
 # --- MENÚ LATERAL ---
 with st.sidebar:
@@ -389,6 +390,12 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
+# Si hay un error al procesar, bloqueamos el acceso al dashboard pero dejamos la Vista Estratégica abierta
+if error_critico and pagina != "📊 Vista Estratégica":
+    st.error(f"Error crítico cargando los datos: {error_critico}")
+    st.warning("⚠️ Asegúrate de que el enlace de Google Sheets es válido y de que el formato de las columnas es correcto. Ve a la pestaña **📊 Vista Estratégica** para configurarlo.")
+    st.stop()
+
 # --- SELECTOR DE USUARIO Y PROTECCIÓN DE RUTAS ---
 nombres = [c["nombre"] for c in ranking] if ranking else ["Sin Datos"]
 
@@ -397,17 +404,14 @@ if st.session_state["rol_actual"] == "Gerente":
 else:
     nombre_seleccionado = st.session_state["nombre_comercial"]
 
-# Buscamos al usuario en la lista
 try:
     yo = next((c for c in ranking if c["nombre"] == nombre_seleccionado), None)
 except Exception:
     yo = None
 
-# ESCUDO ANTI-BLOQUEO: Si no hay datos, bloquea todo EXCEPTO la Vista Estratégica
 if not yo and pagina != "📊 Vista Estratégica":
-    st.warning("⚠️ No hay conexión con la base de datos o el Google Sheets. Si eres Gerente, ve a la pestaña **📊 Vista Estratégica** y configura el enlace válido.")
+    st.warning("⚠️ No se encontraron datos para los comerciales. Ve a la pestaña **📊 Vista Estratégica** y configura el enlace válido.")
     st.stop()
-
 
 # --- RUTAS DE NAVEGACIÓN ---
 if pagina == "🏆 Ranking":
