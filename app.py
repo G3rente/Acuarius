@@ -2,12 +2,10 @@
 Arena Comercial — Dashboard de Gamificación (Streamlit)
 --------------------------------------------------------
 Incluye Login, Roles de Gerencia, Muro de Fuego, Recompensas (Barra de Energía),
-Guerra de Facciones (con filtro estricto) y Conexión Dinámica a Google Sheets
-con Modo a Prueba de Fallos Inteligente.
+Conexión a Google Sheets y Guerra de Facciones (con parche para comerciales en blanco).
 """
 
 import random
-import time
 from pathlib import Path
 import pandas as pd
 
@@ -18,28 +16,11 @@ from ranks import RANGOS, cargar_ranking
 
 APP_DIR = Path(__file__).parent
 USUARIOS_FILE = APP_DIR / "data" / "usuarios.xlsx"
-URL_FILE = APP_DIR / "data" / "sheet_url.txt"
 
-# URL por defecto (fallback)
+# Pon aquí el enlace .csv de tu Google Sheets publicado en la web
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/TU_ENLACE_AQUI/pub?output=csv"
 
 st.set_page_config(page_title="Arena Comercial", page_icon="🏆", layout="wide")
-
-# ---------------------------------------------------------------------------
-# GESTIÓN DINÁMICA DE LA URL DE GOOGLE SHEETS
-# ---------------------------------------------------------------------------
-def obtener_url_sheets() -> str:
-    """Lee la URL guardada en disco. Si el archivo aún no existe, usa la de por defecto."""
-    if URL_FILE.exists():
-        url_guardada = URL_FILE.read_text(encoding="utf-8").strip()
-        if url_guardada:
-            return url_guardada
-    return SHEET_CSV_URL
-
-def guardar_url_sheets(url: str) -> None:
-    """Guarda la nueva URL de Google Sheets en un archivo de texto local."""
-    URL_FILE.parent.mkdir(parents=True, exist_ok=True)
-    URL_FILE.write_text(url.strip(), encoding="utf-8")
 
 # ---------------------------------------------------------------------------
 # AUTO-CONFIGURACIÓN INTELIGENTE DE USUARIOS Y EQUIPOS
@@ -246,35 +227,17 @@ def render_levelup(nombre_rango: str):
     components.html(html, height=340)
 
 # ---------------------------------------------------------------------------
-# LÓGICAS NUEVAS (Datos y Muro)
+# LÓGICAS NUEVAS
 # ---------------------------------------------------------------------------
 @st.cache_data(ttl=60)
 def cargar_datos_sheets():
     try:
-        url = obtener_url_sheets()
-        if url and "TU_ENLACE_AQUI" not in url:
-            # Leemos el CSV ignorando las líneas sucias que dan el error de las 12 columnas
-            df = pd.read_csv(url, on_bad_lines='skip')
-            
-            # Limpiamos nombres de columnas por si hay espacios invisibles
-            df.columns = df.columns.str.strip().str.upper()
-            
-            # Si el Excel es un registro de ventas (tiene COMERCIAL y PTS), lo sumamos automáticamente
-            if 'COMERCIAL' in df.columns and 'PTS' in df.columns:
-                # Renombramos a lo que entiende ranks.py
-                df = df.rename(columns={'COMERCIAL': 'nombre', 'PTS': 'puntos'})
-                
-                # Convertimos los puntos a números por si acaso y rellenamos vacíos con 0
-                df['puntos'] = pd.to_numeric(df['puntos'], errors='coerce').fillna(0)
-                
-                # LA MAGIA: Agrupamos por comercial y sumamos todos sus contratos repetidos
-                df = df.groupby('nombre', as_index=False)['puntos'].sum()
-                
-            return df
+        if "TU_ENLACE_AQUI" not in SHEET_CSV_URL:
+            return pd.read_csv(SHEET_CSV_URL)
         return None
     except Exception as e:
-        # Dejamos que el bloque de abajo capture el error
-        raise e
+        st.error(f"Error conectando a Google Sheets: {e}")
+        return None
 
 def verificar_login():
     if "autenticado" not in st.session_state:
@@ -360,18 +323,11 @@ asegurar_columnas_usuarios()
 inject_css()
 verificar_login()
 
-# --- CARGA SEGURA DE DATOS A PRUEBA DE FALLOS ---
-ranking = []
-error_critico = None
-
+df_vivo = cargar_datos_sheets()
 try:
-    df_vivo = cargar_datos_sheets()
-    if df_vivo is not None:
-        ranking = cargar_ranking(df_vivo)
-    else:
-        ranking = cargar_ranking()
-except Exception as e:
-    error_critico = e
+    ranking = cargar_ranking(df_vivo) if df_vivo is not None else cargar_ranking()
+except TypeError:
+    ranking = cargar_ranking()
 
 # --- MENÚ LATERAL ---
 with st.sidebar:
@@ -390,27 +346,17 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-# Si hay un error al procesar, bloqueamos el acceso al dashboard pero dejamos la Vista Estratégica abierta
-if error_critico and pagina != "📊 Vista Estratégica":
-    st.error(f"Error crítico cargando los datos: {error_critico}")
-    st.warning("⚠️ Asegúrate de que el enlace de Google Sheets es válido y de que el formato de las columnas es correcto. Ve a la pestaña **📊 Vista Estratégica** para configurarlo.")
-    st.stop()
-
-# --- SELECTOR DE USUARIO Y PROTECCIÓN DE RUTAS ---
-nombres = [c["nombre"] for c in ranking] if ranking else ["Sin Datos"]
-
+# --- SELECTOR DE USUARIO ---
+nombres = [c["nombre"] for c in ranking]
 if st.session_state["rol_actual"] == "Gerente":
     nombre_seleccionado = st.selectbox("Ver dashboard como:", nombres, index=0)
 else:
     nombre_seleccionado = st.session_state["nombre_comercial"]
 
 try:
-    yo = next((c for c in ranking if c["nombre"] == nombre_seleccionado), None)
-except Exception:
-    yo = None
-
-if not yo and pagina != "📊 Vista Estratégica":
-    st.warning("⚠️ No se encontraron datos para los comerciales. Ve a la pestaña **📊 Vista Estratégica** y configura el enlace válido.")
+    yo = next(c for c in ranking if c["nombre"] == nombre_seleccionado)
+except StopIteration:
+    st.error(f"Error: El comercial '{nombre_seleccionado}' no está en la base de datos de comerciales.")
     st.stop()
 
 # --- RUTAS DE NAVEGACIÓN ---
@@ -521,27 +467,25 @@ elif pagina == "⚔️ Facciones":
         "Astros": {"puntos": 0, "gerente": "Majus", "color": "#8B5CF6", "shadow": "rgba(139,92,246,0.5)", "mvp_nombre": "-", "mvp_puntos": -1}
     }
     
-    # 3. Sumar puntos y buscar MVPs (Filtro estricto y regla de comerciales en blanco)
+    # 3. Sumar puntos y buscar MVPs (Con regla para el comercial en blanco)
     for c in ranking:
         nombre = c["nombre"]
         puntos = c["puntos"]
         
+        # Detectar si el nombre está en blanco, es NaN o None
         nombre_limpio = str(nombre).strip().lower()
         if nombre_limpio in ("", "nan", "none", "nat"):
-            equipo_str = "Dominus" 
+            equipo = "Dominus" # Asignamos el comercial sin nombre a Dominus
             nombre_mostrar = "Comercial Anónimo"
         else:
-            # Obtener el equipo y normalizarlo (por ej. 'aztecas' -> 'Aztecas')
-            equipo_crudo = equipo_map.get(nombre, "")
-            equipo_str = str(equipo_crudo).strip().title()
+            equipo = equipo_map.get(nombre)
             nombre_mostrar = nombre
             
-        # FILTRO ESTRICTO: Si no es Aztecas, Pegasus, Dominus o Astros, lo ignora totalmente.
-        if equipo_str in facciones:
-            facciones[equipo_str]["puntos"] += puntos
-            if puntos > facciones[equipo_str]["mvp_puntos"]:
-                facciones[equipo_str]["mvp_puntos"] = puntos
-                facciones[equipo_str]["mvp_nombre"] = nombre_mostrar
+        if equipo and equipo in facciones:
+            facciones[equipo]["puntos"] += puntos
+            if puntos > facciones[equipo]["mvp_puntos"]:
+                facciones[equipo]["mvp_puntos"] = puntos
+                facciones[equipo]["mvp_nombre"] = nombre_mostrar
                 
     facciones_ordenadas = sorted(facciones.items(), key=lambda x: x[1]["puntos"], reverse=True)
     max_puntos = facciones_ordenadas[0][1]["puntos"] if facciones_ordenadas[0][1]["puntos"] > 0 else 1
@@ -573,24 +517,5 @@ elif pagina == "⚔️ Facciones":
 
 elif pagina == "📊 Vista Estratégica":
     st.title("📊 Vista Estratégica")
-    st.markdown("### 🔗 Conexión a Google Sheets")
-    
-    url_actual = obtener_url_sheets()
-    st.caption(f"URL activa: `{url_actual}`" if url_actual and "TU_ENLACE_AQUI" not in url_actual else "Sin URL configurada todavía.")
-    
-    with st.form("form_sheets"):
-        nueva_url = st.text_input(
-            "Pega aquí el enlace CSV de Google Sheets (Archivo → Compartir → Publicar en la web → formato CSV)",
-            value=url_actual if "TU_ENLACE_AQUI" not in url_actual else "",
-        )
-        sincronizar = st.form_submit_button("⚡ Enlazar y Sincronizar")
-        
-    if sincronizar:
-        if nueva_url.strip():
-            guardar_url_sheets(nueva_url)
-            st.cache_data.clear()
-            st.success("✅ URL guardada y caché limpiada. Refrescando la arena...")
-            time.sleep(1.5)
-            st.rerun()
-        else:
-            st.error("Por favor, pega una URL válida antes de intentar sincronizar.")
+    st.info("Próximamente: Panel de Control de Tienda")
+    st.write("Bienvenido a la vista de mando. Pronto integraremos KPIs globales aquí.")
