@@ -67,8 +67,16 @@ def construir_logros(logros_ids) -> list:
     ]
 
 
-def cargar_ranking(data_file: Path = DATA_FILE) -> list:
-    df = pd.read_excel(data_file)
+def cargar_ranking(data_file=DATA_FILE) -> list:
+    # --- AQUÍ ESTÁ LA MAGIA ---
+    # Si detecta que es la tabla en vivo de Google Sheets, la copia. 
+    # Si no, lee el archivo de Excel antiguo.
+    if isinstance(data_file, pd.DataFrame):
+        df = data_file.copy()
+    else:
+        df = pd.read_excel(data_file)
+    # ---------------------------
+
     comerciales = []
 
     for _, fila in df.iterrows():
